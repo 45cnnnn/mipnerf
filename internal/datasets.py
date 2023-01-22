@@ -24,7 +24,7 @@ import jax
 import numpy as np
 from PIL import Image
 from internal import utils
-from internal import camera_utils
+# from internal import camera_utils
 
 
 def get_dataset(split, train_dir, config):
@@ -647,7 +647,7 @@ class TanksAndTemplesNerfPP(Dataset):
 
     self.camtoworlds = poses
     self.focal = intrinsics[0, 0, 0]
-    self.pixtocams = camera_utils.get_pixtocam(self.focal, self.width,
+    self.pixtocams = get_pixtocam(self.focal, self.width,
                                                self.height)
 
 dataset_dict = {
@@ -656,3 +656,26 @@ dataset_dict = {
     'multicam': Multicam,
     'tat_nerfpp': TanksAndTemplesNerfPP
 }
+
+def intrinsic_matrix(fx: float,
+                     fy: float,
+                     cx: float,
+                     cy: float,
+                     xnp: types.ModuleType = np) -> _Array:
+  """Intrinsic matrix for a pinhole camera in OpenCV coordinate system."""
+  return xnp.array([
+      [fx, 0, cx],
+      [0, fy, cy],
+      [0, 0, 1.],
+  ])
+
+def get_pixtocam(focal: float,
+                 width: float,
+                 height: float,
+                 xnp: types.ModuleType = np) -> _Array:
+  """Inverse intrinsic matrix for a perfect pinhole camera."""
+  camtopix = intrinsic_matrix(focal, focal, width * .5, height * .5, xnp)
+  return xnp.linalg.inv(camtopix)
+
+
+
