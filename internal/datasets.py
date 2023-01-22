@@ -25,6 +25,9 @@ import numpy as np
 from PIL import Image
 from internal import utils
 # from internal import camera_utils
+import types
+from typing import List, Mapping, Optional, Text, Tuple, Union
+_Array = Union[np.ndarray, jnp.ndarray]
 
 
 def get_dataset(split, train_dir, config):
