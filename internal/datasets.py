@@ -24,6 +24,7 @@ import jax
 import numpy as np
 from PIL import Image
 from internal import utils
+from internal import camera_utils
 
 
 def get_dataset(split, train_dir, config):
@@ -602,9 +603,56 @@ class LLFF(Dataset):
       self.render_poses = new_poses[:, :3, :4]
     return poses_reset
 
+class TanksAndTemplesNerfPP(Dataset):
+  """Subset of Tanks and Temples Dataset as processed by NeRF++."""
+
+  def _load_renderings(self, config):
+    """Load images from disk."""
+    if config.render_path:
+      split_str = 'camera_path'
+    else:
+      split_str = self.split.value
+
+    basedir = os.path.join(self.data_dir, split_str)
+
+    def load_files(dirname, load_fn, shape=None):
+      files = [
+          os.path.join(basedir, dirname, f)
+          for f in sorted(utils.listdir(os.path.join(basedir, dirname)))
+      ]
+      mats = np.array([load_fn(utils.open_file(f, 'rb')) for f in files])
+      if shape is not None:
+        mats = mats.reshape(mats.shape[:1] + shape)
+      return mats
+
+    poses = load_files('pose', np.loadtxt, (4, 4))
+    # Flip Y and Z axes to get correct coordinate frame.
+    poses = np.matmul(poses, np.diag(np.array([1, -1, -1, 1])))
+
+    # For now, ignore all but the first focal length in intrinsics
+    intrinsics = load_files('intrinsics', np.loadtxt, (4, 4))
+
+    if not config.render_path:
+      images = load_files('rgb', lambda f: np.array(Image.open(f))) / 255.
+      self.images = images
+      self.height, self.width = self.images.shape[1:3]
+
+    else:
+      # Hack to grab the image resolution from a test image
+      d = os.path.join(self.data_dir, 'test', 'rgb')
+      f = os.path.join(d, sorted(utils.listdir(d))[0])
+      shape = utils.load_img(f).shape
+      self.height, self.width = shape[:2]
+      self.images = None
+
+    self.camtoworlds = poses
+    self.focal = intrinsics[0, 0, 0]
+    self.pixtocams = camera_utils.get_pixtocam(self.focal, self.width,
+                                               self.height)
 
 dataset_dict = {
     'blender': Blender,
     'llff': LLFF,
     'multicam': Multicam,
+    'tat_nerfpp': TanksAndTemplesNerfPP
 }
